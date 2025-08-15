@@ -1,0 +1,37 @@
+name: Build and Push Docker Image
+
+on:
+  push:
+    tags:
+      - v*.*.*
+
+env:
+  SERVICE_NAME: resilient-task-service
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    environment: DEV
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
+      - name: Set Docker Image
+        run: echo "DOCKER_IMAGE=${{ vars.DOCKER_HUB_NAME }}/${{ env.SERVICE_NAME }}" >> $GITHUB_ENV
+
+      - name: Build APP
+        run: go build -o resilient-task-service ./cmd/main.go
+
+      - name: Build image
+        run: docker build ./ -t $DOCKER_IMAGE:$VERSION
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ vars.DOCKER_HUB_NAME }}
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
+
+      - name: Push image
+        run: docker push $DOCKER_IMAGE:$VERSION
