@@ -22,9 +22,14 @@ func NewMongoTaskRepository(db *mongo.Database) TaskRepository {
 }
 
 func (r *mongoTaskRepository) FindByID(ctx context.Context, id string) (*model.Task, error) {
-	filter := bson.M{"_id": id}
+	objectID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return nil, errors.New("invalid task ID")
+	}
+
+	filter := bson.M{"_id": objectID}
 	var task model.Task
-	err := r.collection.FindOne(ctx, filter).Decode(&task)
+	err = r.collection.FindOne(ctx, filter).Decode(&task)
 	if err != nil {
 		return nil, err
 	}
@@ -61,13 +66,34 @@ func (r *mongoTaskRepository) Save(ctx context.Context, task *model.Task) error 
 }
 
 func (r *mongoTaskRepository) Delete(ctx context.Context, id string, userID string) error {
-	filter := bson.M{"_id": id, "userId": userID}
+	objectID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return errors.New("invalid task ID")
+	}
+
+	filter := bson.M{"_id": objectID, "userId": userID}
 	result, err := r.collection.DeleteOne(ctx, filter)
 	if err != nil {
 		return err
 	}
 	if result.DeletedCount == 0 {
 		return errors.New("task not found or not owned by user")
+	}
+	return nil
+}
+
+func (r *mongoTaskRepository) Update(ctx context.Context, id string, update bson.M) error {
+	objectID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return errors.New("invalid task ID")
+	}
+	filter := bson.M{"_id": objectID}
+	result, err := r.collection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return err
+	}
+	if result.MatchedCount == 0 {
+		return errors.New("task not found")
 	}
 	return nil
 }

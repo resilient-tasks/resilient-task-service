@@ -10,6 +10,7 @@ import (
 	"github.com/fmarsico03/resilient-task-service/internal/repository"
 	"github.com/fmarsico03/resilient-task-service/internal/utils"
 	"github.com/fmarsico03/resilient-task-service/internal/validations"
+	"go.mongodb.org/mongo-driver/bson"
 )
 
 type TaskService interface {
@@ -17,6 +18,7 @@ type TaskService interface {
 	GetTask(ctx context.Context, input dto.AccessTaskRequest) (*model.Task, error)
 	GetTasksByProject(ctx context.Context, input dto.AccessTaskByProjectIDRequest) ([]model.Task, error)
 	DeleteTask(ctx context.Context, input dto.AccessTaskRequest) error
+	UpdateTask(ctx context.Context, input dto.UpdateTaskRequest) (*model.Task, error)
 }
 
 type taskService struct {
@@ -88,4 +90,47 @@ func (s *taskService) DeleteTask(ctx context.Context, input dto.AccessTaskReques
 	}
 
 	return s.repo.Delete(ctx, task.ID.Hex(), task.UserID)
+}
+
+func (s *taskService) UpdateTask(ctx context.Context, input dto.UpdateTaskRequest) (*model.Task, error) {
+	task, err := s.repo.FindByID(ctx, input.TaskID)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := validations.ValidateAccessTaskRequest(input.UserID, task.UserID, input.UserRole); err != nil {
+		return nil, err
+	}
+
+	if input.Status != dto.TaskStatusEnd && input.Status != dto.TaskStatusRestart {
+		return nil, httperror.BadRequest("Invalid status. Must be 'end' or 'restart'")
+	}
+
+	if task.RealEndDate != nil && input.Status == dto.TaskStatusEnd {
+		return nil, httperror.BadRequest("Task already ended")
+	}
+
+	if input.Status == dto.TaskStatusEnd {
+		now := time.Now()
+		task.RealEndDate = &now
+		task.UpdatedAt = now
+	}
+
+	if input.Status == dto.TaskStatusRestart {
+		task.RealEndDate = nil
+		task.UpdatedAt = time.Now()
+	}
+
+	update := bson.M{
+		"$set": bson.M{
+			"realEndDate": task.RealEndDate,
+			"updatedAt":   task.UpdatedAt,
+		},
+	}
+	err = s.repo.Update(ctx, task.ID.Hex(), update)
+	if err != nil {
+		return nil, err
+	}
+
+	return task, nil
 }

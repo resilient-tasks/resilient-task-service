@@ -115,3 +115,27 @@ func (h *TaskHandler) DeleteTask(c *gin.Context) {
 
 	c.JSON(http.StatusNoContent, nil)
 }
+
+func (h *TaskHandler) UpdateTask(c *gin.Context) {
+	taskID := c.Param("id")
+	userID := c.GetString("userId")
+	role := c.GetString("role")
+
+	var request dto.UpdateTaskRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		respondWithError(c, httperror.BadRequest("Invalid request body"))
+		return
+	}
+
+	request.TaskID = taskID
+	request.UserID = userID
+	request.UserRole = role
+
+	task, err := h.service.UpdateTask(c, request)
+	if err != nil {
+		respondWithError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, task)
+}

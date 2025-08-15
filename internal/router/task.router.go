@@ -14,4 +14,5 @@ func RegisterTaskRoutes(r *gin.Engine, h *handler.TaskHandler) {
 	api.GET("/", h.GetTasksByProjectID)
 	api.GET("/:id", h.GetTask)
 	api.DELETE("/:id", h.DeleteTask)
+	api.PUT("/:id", h.UpdateTask)
 }
